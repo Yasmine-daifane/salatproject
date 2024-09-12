@@ -8,7 +8,7 @@ const fetchWithTimeout = (url, timeout = 5000) => {
       .then(response => {
         clearTimeout(timer);
         if (!response.ok) {
-          reject(new Error('Failed to fetch'));
+          reject(new Error(`Failed to fetch, status: ${response.status}`));
         } else {
           resolve(response);
         }
@@ -23,10 +23,11 @@ const fetchWithTimeout = (url, timeout = 5000) => {
 const PrayerTimesApp = () => {
   const [prayerTimes, setPrayerTimes] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // To display an error message
+  const [error, setError] = useState(null);
 
-  const mapFirstApiResponse = (data) => {
+  const mapAdhanResponse = (data) => {
     const timings = data.data[0].timings;
+    console.log('Adhan API timings:', timings); // Debugging statement
     return {
       Fajr: timings.Fajr,
       Dhuhr: timings.Dhuhr,
@@ -36,66 +37,68 @@ const PrayerTimesApp = () => {
     };
   };
 
-  const mapSecondApiResponse = (data) => {
-    const timings = data.items[0].timings;
+  const mapMuslimSalatResponse = (data) => {
+    const timings = data.items[0];
+    console.log('MuslimSalat API timings:', timings); // Debugging statement
     return {
-      Fajr: timings.Fajr,
-      Dhuhr: timings.Dhuhr,
-      Asr: timings.Asr,
-      Maghrib: timings.Maghrib,
-      Isha: timings.Isha,
+      Fajr: timings.fajr,
+      Dhuhr: timings.dhuhr,
+      Asr: timings.asr,
+      Maghrib: timings.maghrib,
+      Isha: timings.isha,
     };
   };
 
-  const fetchFirstAPI = async () => {
+  const fetchAdhanAPI = async () => {
+    console.log("Fetching Adhan API...");
     try {
-      console.log('Fetching from Adhan API...');
       const response = await fetchWithTimeout(
         'https://api.aladhan.com/v1/calendarByCity/2024/8?city=casablanca&country=morocco',
         5000
       );
       const result = await response.json();
-      console.log('Adhan API response:', result);
+      console.log('Adhan API result:', result);
 
-      if (response.ok && result && result.data && result.data.length > 0) {
-        setPrayerTimes(mapFirstApiResponse(result)); // Set prayer times from Adhan API
+      if (result && result.data && result.data.length > 0) {
+        setPrayerTimes(mapAdhanResponse(result));
         setLoading(false);
       } else {
-        console.log('Adhan API returned invalid data, trying MuslimSalat API...');
-        fetchSecondAPI(); // Fallback to MuslimSalat API if Adhan API returns invalid data
+        console.log('Adhan API failed, fetching MuslimSalat API');
+        fetchMuslimSalatAPI(); // Fallback
       }
     } catch (error) {
-      console.error("Error with Adhan API:", error);
-      fetchSecondAPI(); // Fallback to MuslimSalat API on error
+      console.error('Error with Adhan API:', error.message);
+      fetchMuslimSalatAPI(); // Fallback to MuslimSalat API
     }
   };
 
-  const fetchSecondAPI = async () => {
+  const fetchMuslimSalatAPI = async () => {
+    console.log("Fetching MuslimSalat API...");
     try {
-      console.log('Fetching from MuslimSalat API...');
       const response = await fetchWithTimeout(
         'https://muslimsalat.com/Casablanca.json?key=969848a2da5ee97c6964283ef1ad36d0',
         5000
       );
       const result = await response.json();
-      console.log('MuslimSalat API response:', result);
+      console.log('MuslimSalat API result:', result);
 
-      if (response.ok && result && result.items && result.items.length > 0) {
-        setPrayerTimes(mapSecondApiResponse(result)); // Set prayer times from MuslimSalat API
+      if (result && result.items && result.items.length > 0) {
+        setPrayerTimes(mapMuslimSalatResponse(result));
+        setLoading(false);
       } else {
-        console.error('MuslimSalat API returned invalid data.');
+        console.log('MuslimSalat API returned invalid data.');
         setError('Could not retrieve prayer times from both APIs.');
+        setLoading(false);
       }
     } catch (error) {
-      console.error("Error with MuslimSalat API:", error);
+      console.error('Error with MuslimSalat API:', error.message);
       setError('Both APIs failed to respond.');
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFirstAPI();
+    fetchAdhanAPI();
   }, []);
 
   if (loading) {
